@@ -1,0 +1,6 @@
+release-assets/
+.build/
+.swiftpm/
+*.xcframework
+Package.resolved
+.DS_Store
