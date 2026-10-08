@@ -1,6 +1,10 @@
 // swift-tools-version:5.7
-// Swift Package wrapper for Google ML Kit 3.2.0 (the CocoaPods `GoogleMLKit/*` 3.2.0 subspecs):
+// Swift Package for Google ML Kit 3.2.0 (the CocoaPods `GoogleMLKit/*` 3.2.0 subspecs):
 // FaceDetection, ImageLabeling, ObjectDetection and TextRecognition (Latin).
+//
+// Add the package, add the `MLKit` product to the app target, `import MLKit`. No linker flags,
+// no resources to copy: the binaries are pre-linked (no -ObjC needed) and the model bundles ship as
+// SwiftPM resources.
 //
 // Shared Google libraries (GoogleUtilities, GoogleDataTransport, GTMSessionFetcher, nanopb,
 // Promises) are NOT bundled. They resolve from their official packages with ranges that
@@ -9,16 +13,14 @@
 import PackageDescription
 
 // GitHub release the .xcframework.zip files are attached to.
-let releaseURL = "https://github.com/PbutronB/mlkit/releases/download/3.2.0"
+let releaseURL = "https://github.com/PbutronB/mlkit/releases/download/3.2.1"
 
 let package = Package(
   name: "GoogleMLKit",
   platforms: [.iOS(.v13)],
   products: [
-    .library(name: "MLKitFaceDetection", targets: ["FaceDetection"]),
-    .library(name: "MLKitImageLabeling", targets: ["ImageLabeling"]),
-    .library(name: "MLKitObjectDetection", targets: ["ObjectDetection"]),
-    .library(name: "MLKitTextRecognition", targets: ["TextRecognition"]),
+    // Everything: Face detection, Image labeling, Object detection, Text recognition.
+    .library(name: "MLKit", targets: ["MLKit"]),
   ],
   dependencies: [
     // Same ranges Firebase 10.29.0 uses, so SPM picks one version for both.
@@ -29,31 +31,22 @@ let package = Package(
     .package(url: "https://github.com/google/promises.git", "2.1.0" ..< "3.0.0"),
   ],
   targets: [
-    // MARK: Feature targets (thin wrappers so each product pulls only what it needs)
+    // `import MLKit`, same umbrella module CocoaPods provides. Re-exports every ML Kit module.
     .target(
-      name: "FaceDetection",
-      dependencies: ["MLKitFaceDetection", "VisionCore"],
-      path: "Sources/FaceDetection"),
-    .target(
-      name: "ImageLabeling",
-      dependencies: ["MLKitImageLabeling", "MLKitImageLabelingCommon", "MLKitVisionKit", "VisionCore"],
-      path: "Sources/ImageLabeling"),
-    .target(
-      name: "ObjectDetection",
-      dependencies: ["MLKitObjectDetection", "MLKitObjectDetectionCommon", "MLKitVisionKit", "VisionCore"],
-      path: "Sources/ObjectDetection"),
-    .target(
-      name: "TextRecognition",
-      dependencies: ["MLKitTextRecognition", "MLKitTextRecognitionCommon", "VisionCore"],
-      path: "Sources/TextRecognition"),
-
-    // MARK: Shared core: MLKitCommon + MLKitVision + their dependencies
-    .target(
-      name: "VisionCore",
+      name: "MLKit",
       dependencies: [
+        "MLKitResources",
         "MLImage",
         "MLKitCommon",
         "MLKitVision",
+        "MLKitVisionKit",
+        "MLKitFaceDetection",
+        "MLKitImageLabeling",
+        "MLKitImageLabelingCommon",
+        "MLKitObjectDetection",
+        "MLKitObjectDetectionCommon",
+        "MLKitTextRecognition",
+        "MLKitTextRecognitionCommon",
         "GoogleToolboxForMac",
         "GoogleUtilitiesComponents",
         "Protobuf",
@@ -66,7 +59,7 @@ let package = Package(
         .product(name: "nanopb", package: "nanopb"),
         .product(name: "FBLPromises", package: "promises"),
       ],
-      path: "Sources/VisionCore",
+      path: "Sources/MLKit",
       linkerSettings: [
         .linkedLibrary("c++"),
         .linkedLibrary("z"),
@@ -81,64 +74,71 @@ let package = Package(
         .linkedFramework("SystemConfiguration"),
       ]),
 
+    // ML Kit's model bundles, plus a small lookup shim so ML Kit finds them inside the
+    // SwiftPM resource bundle (CocoaPods copies them to the app root instead).
+    .target(
+      name: "MLKitResources",
+      path: "Sources/MLKitResources",
+      resources: [.copy("ModelBundles")]),
+
     // MARK: Binaries (built by scripts/build-xcframeworks.sh, attached to the GitHub release)
     .binaryTarget(
       name: "MLImage",
       url: "\(releaseURL)/MLImage.xcframework.zip",
-      checksum: "d42765843a4214226cfb6a0b083f942366eb28792706f1e34e7bb65bc498566d"),
+      checksum: "42c0624cabc521da3563b8810b311f53ff038da40f035a6d11663ef97d4b696a"),
     .binaryTarget(
       name: "MLKitCommon",
       url: "\(releaseURL)/MLKitCommon.xcframework.zip",
-      checksum: "75211041016d7f0c500585122a6f55f44c473f180474770bf5344ba4de473cd6"),
+      checksum: "8b0acdf805176c025e390f9eb316487194a9188407a7d97fcc9aafa8fc3397ef"),
     .binaryTarget(
       name: "MLKitVision",
       url: "\(releaseURL)/MLKitVision.xcframework.zip",
-      checksum: "7e997ee6f4a4aed78d2b559f0e21c67e4479c70ac6252f58bd9042d5aa8e6bd0"),
+      checksum: "38dcf9866fa2fc01d76123d65d8c30e3bd6725f36eb19b58822b9b6ea329772a"),
     .binaryTarget(
       name: "MLKitVisionKit",
       url: "\(releaseURL)/MLKitVisionKit.xcframework.zip",
-      checksum: "4aef123e237480a9c2cc169d5e40aaa43c7f3c7bedc01278bffa15bb37c854a6"),
+      checksum: "679e341c11f29f0b4eabd0ecec058640f691f2a7a2e6517941c089571f2fe8cd"),
     .binaryTarget(
       name: "MLKitFaceDetection",
       url: "\(releaseURL)/MLKitFaceDetection.xcframework.zip",
-      checksum: "fde5e213d6c990b7baabe2e49bfe2404846490e0607d9ae550aa4d27d9ff53c4"),
+      checksum: "77a78dae1780d340e1003d7e3b038555f34c7c5baad7a7935c4f2c4bec460415"),
     .binaryTarget(
       name: "MLKitImageLabeling",
       url: "\(releaseURL)/MLKitImageLabeling.xcframework.zip",
-      checksum: "db4c644d7dff2a98e56efdb7638ba49c4502cffd11c8cad6616d85ce1af0c6e8"),
+      checksum: "5db63f7a09c3e2ec679a7dfba80053969bbe3595821cd7759963e4df0f75df38"),
     .binaryTarget(
       name: "MLKitImageLabelingCommon",
       url: "\(releaseURL)/MLKitImageLabelingCommon.xcframework.zip",
-      checksum: "08f017578447bbfbfc92dde419cc240bcf974220e4c5e05500066f1fa20059c6"),
+      checksum: "ba99df34cffc69248ee7d0d329b2ed5b7ca599de43971c0f550fdc0929e1c5fc"),
     .binaryTarget(
       name: "MLKitObjectDetection",
       url: "\(releaseURL)/MLKitObjectDetection.xcframework.zip",
-      checksum: "39268b7d34dcaca2f96bac3c08d0cb303f2ec023f18e1d4054a580fee4f5bceb"),
+      checksum: "fa2d7224ae211684bcfc56de4f892ef3b3366b779465c982a0cd57186f750bf6"),
     .binaryTarget(
       name: "MLKitObjectDetectionCommon",
       url: "\(releaseURL)/MLKitObjectDetectionCommon.xcframework.zip",
-      checksum: "35b7de3c5cfc31da276fce909ea61c5521c9afed7755dcb6f10453ea618418a0"),
+      checksum: "ab435aa130e4e9c20f20a0910177282cbe197bd1c2dddc195f74a40da2fd86de"),
     .binaryTarget(
       name: "MLKitTextRecognition",
       url: "\(releaseURL)/MLKitTextRecognition.xcframework.zip",
-      checksum: "864d613cb3f4cda0bfce6837aec18f76d6f3f10ec321e977994e3bbc6d0e5104"),
+      checksum: "f596858428b585a09f4dd490c918307bdb98c7e715be5710fb403e3e7e5405a1"),
     .binaryTarget(
       name: "MLKitTextRecognitionCommon",
       url: "\(releaseURL)/MLKitTextRecognitionCommon.xcframework.zip",
-      checksum: "d009105f022f6d08d3d0ea59cf5d41ca887fb33869b5c374603af811dd7bfaed"),
+      checksum: "1073f3bbe50e79caf582f39f0ff2e8410e5a488519365c2a8161349627908eef"),
 
     // Not part of Firebase 10.x, required by ML Kit.
     .binaryTarget(
       name: "GoogleToolboxForMac",
       url: "\(releaseURL)/GoogleToolboxForMac.xcframework.zip",
-      checksum: "67f1a469fc0bd31d4b2dce092b1f65c6f451d5a631527fe9f87fdf3733e98eeb"),
+      checksum: "d56e7b02b869fe0d89d801572fbf3dd62b28d3bcdb76176a58591cfeec4fef72"),
     .binaryTarget(
       name: "GoogleUtilitiesComponents",
       url: "\(releaseURL)/GoogleUtilitiesComponents.xcframework.zip",
-      checksum: "1f9576d39fc75f40993b00b23dd901c04b11d0840b2c8edfcaa6de7ae03352b1"),
+      checksum: "ec74472dd89abd3715082a4414e53dcb0c6539d9b2e78b6645cac06e5ddb3cf5"),
     .binaryTarget(
       name: "Protobuf",
       url: "\(releaseURL)/Protobuf.xcframework.zip",
-      checksum: "44bf82c0ac871c56ba6cd33351b5b2124f4088da7a7d46ef7c6aecf4ca738202"),
+      checksum: "1c5c79e24f534b780459793ac603325e2f5632dd7a1547b94c8d4dd859c8affd"),
   ]
 )
