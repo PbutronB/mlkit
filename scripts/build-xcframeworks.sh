@@ -17,6 +17,16 @@
 # Every static library is pre-linked into a single object (ld -r -all_load). The app linker then
 # keeps all of it, including Objective-C categories, so consumers don't need -ObjC.
 # The arm64 device slice is re-tagged as arm64-simulator so Apple Silicon simulators work.
+#
+# Embedded bitcode is stripped from every object BEFORE pre-linking. ld -r would otherwise merge
+# each file's __LLVM,__bitcode/__cmdline into one section (e.g. 208 modules in MLKitCommon), and
+# obfuscators that re-read bitcode (iXGuard: "The amount of found bitcode files does not match the
+# amount of found command groups") reject the result. Bitcode is unused since Xcode 14 and App Store
+# Connect rejects it, so nothing is lost; the machine code is unchanged (checked per object).
+#
+# Xcode's own bitcode_strip is broken on Xcode 26 ("internal link edit command failed"), so this
+# needs llvm-bitcode-strip: set BITCODE_STRIP, or have it on PATH (brew install llvm), or the
+# iXGuard toolchain installed.
 set -euo pipefail
 
 PODS="${1:?Usage: $0 /path/to/Pods}"
@@ -51,6 +61,15 @@ RESOURCE_TARGETS=(
   MLKitTextRecognition-LatinOCRResources
 )
 
+BITCODE_STRIP="${BITCODE_STRIP:-$(command -v llvm-bitcode-strip || true)}"
+for candidate in \
+  "$HOME/Library/Developer/Toolchains/ixguard.xctoolchain/usr/bin/llvm-bitcode-strip" \
+  /opt/homebrew/opt/llvm/bin/llvm-bitcode-strip /usr/local/opt/llvm/bin/llvm-bitcode-strip; do
+  [ -n "$BITCODE_STRIP" ] && break
+  [ -x "$candidate" ] && BITCODE_STRIP="$candidate"
+done
+[ -x "$BITCODE_STRIP" ] || { echo "llvm-bitcode-strip not found, set BITCODE_STRIP" >&2; exit 1; }
+
 rm -rf "$OUT" "$RES"
 mkdir -p "$OUT" "$XCF" "$RES"
 
@@ -72,12 +91,67 @@ framework_info_plist() {
 EOF
 }
 
+# Removes embedded bitcode (__LLVM segment) in place from a thin archive or object, one member at a
+# time so each object keeps its own identity. Fails if any machine code changes.
+strip_bitcode() {
+  local in="$1" dir="$WORK/bitcode.$$" o
+  rm -rf "$dir"; mkdir -p "$dir"
+  if file -b "$in" | grep -q "ar archive"; then
+    local count
+    count="$(extract_members "$in" "$dir")"
+    [ "$count" = "$(ar -t "$in" | grep -c '\.o$' || true)" ] \
+      || { echo "member count mismatch extracting $in" >&2; return 1; }
+    [ "$count" -gt 0 ] || { rm -rf "$dir"; return 0; }
+    for o in "$dir"/*.o; do strip_bitcode_object "$o"; done
+    rm -f "$in"
+    xcrun libtool -static -no_warning_for_no_symbols -o "$in" "$dir"/*.o
+  else
+    strip_bitcode_object "$in"
+  fi
+  rm -rf "$dir"
+}
+
+# Extracts every .o member of BSD archive $1 into directory $2 as NNNN_name.o, in archive order.
+# Apple's ar has no -N, and ar -x keeps only the last of several members sharing a name
+# (MLKitCommon has two escaping.o), so the archive is read directly.
+extract_members() {
+  python3 - "$1" "$2" <<'PY'
+import os, sys
+data = open(sys.argv[1], "rb").read()
+assert data[:8] == b"!<arch>\n", "not a BSD archive"
+pos, n = 8, 0
+while pos + 60 <= len(data):
+    hdr = data[pos:pos + 60]
+    name, size = hdr[:16].decode().strip(), int(hdr[48:58].decode().strip())
+    body = data[pos + 60:pos + 60 + size]
+    if name.startswith("#1/"):  # BSD long name: stored at the start of the body
+        ln = int(name[3:])
+        name, body = body[:ln].rstrip(b"\0").decode(), body[ln:]
+    if name.endswith(".o"):
+        n += 1
+        open(os.path.join(sys.argv[2], "%04d_%s" % (n, name)), "wb").write(body)
+    pos += 60 + size + (size & 1)
+print(n)
+PY
+}
+
+strip_bitcode_object() {
+  local o="$1"
+  otool -l "$o" | grep -q "segname __LLVM" || return 0
+  "$BITCODE_STRIP" -r "$o" -o "$o.nobc"
+  if [ "$(otool -t "$o" | tail -n +2 | md5)" != "$(otool -t "$o.nobc" | tail -n +2 | md5)" ]; then
+    echo "bitcode strip changed machine code in $o" >&2; return 1
+  fi
+  mv "$o.nobc" "$o"
+}
+
 # Pre-links one architecture of a static library (archive or relocatable object) into a single
 # relocatable object. $1 input, $2 arch, $3 platform (ios | ios-simulator), $4 output.
 prelink() {
   local in="$1" arch="$2" platform="$3" out="$4" thin="$WORK/thin.$$"
   if [ "$(lipo -archs "$in")" = "$arch" ]; then cp "$in" "$thin"; else lipo "$in" -thin "$arch" -output "$thin"; fi
-  if [ "$(file -b "$thin" | cut -c1-10)" = "current ar" ] || file -b "$thin" | grep -q "ar archive"; then
+  if file -b "$thin" | grep -q "ar archive"; then
+    strip_bitcode "$thin"
     # -keep_private_externs keeps hidden symbols visible across the pre-linked object boundary.
     # -S drops the debug map: its entries point back to $thin, which is deleted right after, so
     # consumers would get "unable to open object file" warnings when generating their dSYM.
@@ -92,8 +166,7 @@ prelink() {
 }
 
 # Re-tags an iOS-device arm64 object as iOS-simulator (platform 7). The code is identical; only
-# the platform load command differs. Falls back to rebuilding the load command with ld -r when
-# vtool can't grow the header in place.
+# the platform load command differs.
 retag_simulator() {
   local in="$1" out="$2"
   if ! xcrun vtool -set-build-version 7 "$MIN_IOS" "$MIN_IOS" -replace -output "$out" "$in"; then
@@ -126,8 +199,14 @@ make_xcframework() {
 
   prelink "$dev_src/$name" arm64 ios "$tmp/dev.o"
   retag_simulator "$tmp/dev.o" "$tmp/sim_arm64.o"
+  # Objects that were already a single file in the pod skip ld -r and still carry their own
+  # bitcode. Strip it only now: llvm-bitcode-strip leaves no padding after the load commands, so
+  # vtool could not have grown the header for the simulator retag afterwards.
+  strip_bitcode "$tmp/dev.o"
+  strip_bitcode "$tmp/sim_arm64.o"
   if lipo -archs "$sim_src/$name" | grep -q x86_64; then
     prelink "$sim_src/$name" x86_64 ios-simulator "$tmp/sim_x86_64.o"
+    strip_bitcode "$tmp/sim_x86_64.o"
     lipo -create "$tmp/sim_arm64.o" "$tmp/sim_x86_64.o" -output "$tmp/sim.o"
   else
     mv "$tmp/sim_arm64.o" "$tmp/sim.o"

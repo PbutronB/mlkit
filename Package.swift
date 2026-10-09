@@ -13,7 +13,7 @@
 import PackageDescription
 
 // GitHub release the .xcframework.zip files are attached to.
-let releaseURL = "https://github.com/PbutronB/mlkit/releases/download/3.2.2"
+let releaseURL = "https://github.com/PbutronB/mlkit/releases/download/3.2.3"
 
 let package = Package(
   name: "GoogleMLKit",
@@ -85,60 +85,60 @@ let package = Package(
     .binaryTarget(
       name: "MLImage",
       url: "\(releaseURL)/MLImage.xcframework.zip",
-      checksum: "4e680ef25ca4930cb392f31e2187ba56d91723d64a211aba0f38ecf7929066e6"),
+      checksum: "d5a4c89f4ed306b013c03a2b7adc596f2bc0990b1b959996495fa7792f7a4ecd"),
     .binaryTarget(
       name: "MLKitCommon",
       url: "\(releaseURL)/MLKitCommon.xcframework.zip",
-      checksum: "0659201f5b7e0b8b42b74e90c02462f6b1cfdb1fc7c2f6506b63d3b89dee9fbb"),
+      checksum: "1761251a56daeb00dac03a618833ae962686970d482b3de5fbcdd142627b1cc8"),
     .binaryTarget(
       name: "MLKitVision",
       url: "\(releaseURL)/MLKitVision.xcframework.zip",
-      checksum: "5a6601e7a3ddc36c989598599c154285957cb489147509dfc1cb32006118ef9f"),
+      checksum: "6d2cbc4499dadb67773d4033ca361ee0bcd045f552998158c35ab9aec6645593"),
     .binaryTarget(
       name: "MLKitVisionKit",
       url: "\(releaseURL)/MLKitVisionKit.xcframework.zip",
-      checksum: "c91bd2a708ac47072afe30bd0cff0040b8740cd1445f0b95e1dab26cf38fb5a2"),
+      checksum: "7c35eb9824ed59b95533fa77818c21e6b52115c422cb90380882fdccc446c29d"),
     .binaryTarget(
       name: "MLKitFaceDetection",
       url: "\(releaseURL)/MLKitFaceDetection.xcframework.zip",
-      checksum: "6355313cead6e675234f14b9adf1f6de196f2cbcc57743160790078df6dcb1bb"),
+      checksum: "34598da92f34780e128e327a0e946c146fbeaec0fc611d912d3f40995dd2d605"),
     .binaryTarget(
       name: "MLKitImageLabeling",
       url: "\(releaseURL)/MLKitImageLabeling.xcframework.zip",
-      checksum: "7ffc08d06729d4916e622e5797f06aa2997ece49408cb6aa3a0edee3e0771843"),
+      checksum: "5bdd12c8d2e653b990c496eea8b971df6c8c9acfed4a96e29e3e90447da88ed5"),
     .binaryTarget(
       name: "MLKitImageLabelingCommon",
       url: "\(releaseURL)/MLKitImageLabelingCommon.xcframework.zip",
-      checksum: "22617d016eac596f7dadced9ae505ecf6be0100794be7fa0ecea3ae43208d8ee"),
+      checksum: "568fdc035f88f5ff003b297b485a29d6330e346da2cc364eaa45b3dd984d5d4b"),
     .binaryTarget(
       name: "MLKitObjectDetection",
       url: "\(releaseURL)/MLKitObjectDetection.xcframework.zip",
-      checksum: "cefab6e5e09028ba1e41aeb71689e20481b4e1b35a667884a104a7d3b176cdb3"),
+      checksum: "f14e2a2aa56733313d1659912c9f3113e8e9cb5033aea33b31a02b6992600e87"),
     .binaryTarget(
       name: "MLKitObjectDetectionCommon",
       url: "\(releaseURL)/MLKitObjectDetectionCommon.xcframework.zip",
-      checksum: "ae124daad7e3424ca730d8ea451f260f739f1b8221d35636606b65e181c2bbf6"),
+      checksum: "7ca1a38ca1f6d862c1ea1e7c6c1a2b03b356d7e6fa82eccbd306a83ec65cd795"),
     .binaryTarget(
       name: "MLKitTextRecognition",
       url: "\(releaseURL)/MLKitTextRecognition.xcframework.zip",
-      checksum: "220ec1eae4184fab74e8d7dc6ef6579c89260287412ac3bd12ea63e44599f2e7"),
+      checksum: "dea5b50c4d44c6d45d451982f7beadd9717a6bda59d9611866a9f523e030354b"),
     .binaryTarget(
       name: "MLKitTextRecognitionCommon",
       url: "\(releaseURL)/MLKitTextRecognitionCommon.xcframework.zip",
-      checksum: "ac1877b0a636b29733d2cf53d0d2716698283fc14cdb926eac35fda707f47045"),
+      checksum: "c4aac09ea36cd7ed0f97cd9434663f2d87fc90686d0395d3e284d0d0930d7ecf"),
 
     // Not part of Firebase 10.x, required by ML Kit.
     .binaryTarget(
       name: "GoogleToolboxForMac",
       url: "\(releaseURL)/GoogleToolboxForMac.xcframework.zip",
-      checksum: "48ceba151ff373bc490413684409fa9d28b6171c30c1d38f7fb462f4d31fe80f"),
+      checksum: "7f207a488d407e9a005ecdf8eff751daf6cc661f466b75c53fa4db90ef960cb3"),
     .binaryTarget(
       name: "GoogleUtilitiesComponents",
       url: "\(releaseURL)/GoogleUtilitiesComponents.xcframework.zip",
-      checksum: "61b2646910945c4f1ec3c629d665f41c820abff32847d974bff2133871ebb5be"),
+      checksum: "3f8bd491c3355431a207f23a28b90ef1a3108e156d3d0a0751e52d85bebde0fd"),
     .binaryTarget(
       name: "Protobuf",
       url: "\(releaseURL)/Protobuf.xcframework.zip",
-      checksum: "f4f122a81ed2ea9c22dd931c5bb81319ea89e50ee6891c6149dc149ee4006adc"),
+      checksum: "8c4aa9f2de3a72f0660a90b1a2f33fcc624bc816ad960b4290b2c60d6a584bd4"),
   ]
 )

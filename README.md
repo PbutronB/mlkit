@@ -13,7 +13,7 @@ Built to live next to the official **Firebase iOS SDK 10.x** Swift package.
 
 ## Installation
 
-1. **File > Add Package Dependencies…** → `https://github.com/PbutronB/mlkit`, version `3.2.2` (Up to Next Minor).
+1. **File > Add Package Dependencies…** → `https://github.com/PbutronB/mlkit`, version `3.2.3` (Up to Next Minor).
 2. Add the **`MLKit`** product to your app target.
 
 That's it. No linker flags, no bundles to copy, no build phases. Use it like the pod:
@@ -39,6 +39,7 @@ import MLKit   // or the individual modules: MLKitFaceDetection, MLKitVision, ML
 - **Apple Silicon simulator**: the arm64 device slice is re-tagged as arm64-simulator, so no Rosetta and no `EXCLUDED_ARCHS`.
 - **Privacy manifests**: Protobuf and GoogleToolboxForMac are on Apple's list of commonly used SDKs, so their frameworks carry the upstream `PrivacyInfo.xcprivacy` files from [`PrivacyManifests/`](PrivacyManifests).
 - **dSYM warnings**: pre-linking drops the debug map (`ld -r -S`), which otherwise points at a deleted temp file and makes the app's dSYM step print `unable to open object file`. Code and symbols are unchanged.
+- **Embedded bitcode**: stripped from every object before pre-linking. `ld -r` would otherwise merge each file's bitcode into one section (208 modules in MLKitCommon), which obfuscators that re-read bitcode reject (iXGuard: `The amount of found bitcode files does not match the amount of found command groups`). Bitcode has been unused since Xcode 14; machine code and symbols are identical to 3.2.2.
 
 ## Verified
 
@@ -51,7 +52,7 @@ A test app with the `MLKit` product plus `FirebaseAnalytics`, `FirebaseMessaging
 
 - **Firebase 11+ isn't supported.** It moves GoogleUtilities to 8.x and GoogleDataTransport to 10.x, which ML Kit 3.2.0 was not built against.
 - **GTMSessionFetcher resolves to 3.x** (Firebase 10.29.0 requires ≥ 2.1). Every API ML Kit uses from it exists in 3.x; it's only used for optional model downloads and usage logging, not for on-device detection.
-- **Large download.** The release zips total ~620 MB, mostly Google's embedded bitcode in MLKitTextRecognitionCommon, MLKitVisionKit and MLKitFaceDetection. It's stripped at link time and doesn't affect app size.
+- **Download size.** The release zips total ~125 MB, mostly MLKitTextRecognitionCommon, MLKitVisionKit and MLKitFaceDetection.
 
 ## Publishing a release
 
@@ -61,12 +62,12 @@ The `.xcframework.zip` files are too big for git and are attached to a GitHub re
    ```sh
    scripts/build-xcframeworks.sh /path/to/project/Pods
    ```
-   This writes `release-assets/*.xcframework.zip` and `release-assets/checksums.txt`, and refreshes `Sources/MLKitResources/ModelBundles`.
+   This writes `release-assets/*.xcframework.zip` and `release-assets/checksums.txt`, and refreshes `Sources/MLKitResources/ModelBundles`. It needs `llvm-bitcode-strip` (Xcode 26's `bitcode_strip` is broken): set `BITCODE_STRIP`, or have it on `PATH` (`brew install llvm`), or the iXGuard toolchain installed.
 2. Update the checksums and the version in `releaseURL` in `Package.swift`.
 3. Commit, tag, push, and attach the zips:
    ```sh
-   git tag 3.2.2 && git push origin main --tags
-   gh release create 3.2.2 release-assets/*.zip --title "ML Kit 3.2.0 (package 3.2.2)"
+   git tag 3.2.3 && git push origin main --tags
+   gh release create 3.2.3 release-assets/*.zip --title "ML Kit 3.2.0 (package 3.2.3)"
    ```
 
 ## License
