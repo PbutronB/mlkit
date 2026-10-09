@@ -79,8 +79,12 @@ prelink() {
   if [ "$(lipo -archs "$in")" = "$arch" ]; then cp "$in" "$thin"; else lipo "$in" -thin "$arch" -output "$thin"; fi
   if [ "$(file -b "$thin" | cut -c1-10)" = "current ar" ] || file -b "$thin" | grep -q "ar archive"; then
     # -keep_private_externs keeps hidden symbols visible across the pre-linked object boundary.
+    # -S drops the debug map: its entries point back to $thin, which is deleted right after, so
+    # consumers would get "unable to open object file" warnings when generating their dSYM.
+    # Code, symbols and ObjC metadata are unchanged (verified byte-for-byte against a build
+    # without -S); only the stabs go.
     xcrun ld -r -arch "$arch" -platform_version "$platform" "$MIN_IOS" "$MIN_IOS" \
-      -all_load -keep_private_externs "$thin" -o "$out" 2> >(grep -v "^ld: warning" >&2)
+      -all_load -keep_private_externs -S "$thin" -o "$out"
   else
     cp "$thin" "$out"
   fi
@@ -92,7 +96,7 @@ prelink() {
 # vtool can't grow the header in place.
 retag_simulator() {
   local in="$1" out="$2"
-  if ! xcrun vtool -set-build-version 7 "$MIN_IOS" "$MIN_IOS" -replace -output "$out" "$in" 2>/dev/null; then
+  if ! xcrun vtool -set-build-version 7 "$MIN_IOS" "$MIN_IOS" -replace -output "$out" "$in"; then
     echo "vtool failed for $in" >&2; return 1
   fi
 }
@@ -106,6 +110,11 @@ make_slice() {
   done
   mv "$bin" "$dir/$name"
   framework_info_plist "$dir" "$name"
+  # Apple requires a privacy manifest for Protobuf and GoogleToolboxForMac (commonly used SDKs).
+  # The files are the upstream ones (Protobuf 3.26.1 pod, GTM Logger subspec), kept in the repo.
+  local manifest="$ROOT/PrivacyManifests/$name/PrivacyInfo.xcprivacy"
+  [ -f "$manifest" ] && cp "$manifest" "$dir/"
+  return 0
 }
 
 # Builds a static XCFramework for $name from a framework that contains arm64 (device) and,
@@ -126,8 +135,13 @@ make_xcframework() {
   # Static libraries are archives; wrap each pre-linked object so Xcode treats it as one.
   for s in dev sim; do
     for a in $(lipo -archs "$tmp/$s.o"); do
-      lipo "$tmp/$s.o" -thin "$a" -output "$tmp/$s.$a.o" 2>/dev/null || cp "$tmp/$s.o" "$tmp/$s.$a.o"
-      xcrun libtool -static -o "$tmp/$s.$a.a" "$tmp/$s.$a.o" 2> >(grep -v "has no symbols" >&2)
+      # dev.o (and sim.o without x86_64) is already thin; lipo -thin only accepts fat input.
+      if [ "$(lipo -archs "$tmp/$s.o")" = "$a" ]; then
+        cp "$tmp/$s.o" "$tmp/$s.$a.o"
+      else
+        lipo "$tmp/$s.o" -thin "$a" -output "$tmp/$s.$a.o"
+      fi
+      xcrun libtool -static -o "$tmp/$s.$a.a" "$tmp/$s.$a.o"
     done
     lipo -create "$tmp/$s".*.a -output "$tmp/$s.a"
   done
@@ -163,9 +177,16 @@ for sdk in iphoneos iphonesimulator; do
     ARCHS="$archs" ONLY_ACTIVE_ARCH=NO \
     MACH_O_TYPE=staticlib IPHONEOS_DEPLOYMENT_TARGET="$MIN_IOS" \
     CLANG_ENABLE_MODULE_DEBUGGING=NO DEBUG_INFORMATION_FORMAT=dwarf \
-    GCC_WARN_INHIBIT_ALL_WARNINGS=YES CODE_SIGNING_ALLOWED=NO \
-    SYMROOT="$BUILD" OBJROOT="$WORK/obj" -quiet 2>&1 | grep -E "error:" || true
+    CODE_SIGNING_ALLOWED=NO \
+    SYMROOT="$BUILD" OBJROOT="$WORK/obj" -quiet
 done
+# Known, reviewed output of this step (Xcode 26.6, pods pinned as in the README):
+# - Protobuf 3.26.1: 3 x -Wstrict-prototypes in GPBAny/GPBDuration/GPBTimestamp.pbobjc.m (Google's
+#   generated code, `void f()` declarations; harmless).
+# - libtool "has no symbols" for GTMNSString/GTMNSDictionary+URLArguments.o: the dummy symbol in each
+#   category file is stripped, the category methods themselves are kept (checked in the output).
+# - "Building targets in manual order is deprecated": Pods.xcodeproj setting, no effect.
+# Anything else is new and should be looked at before publishing.
 
 for name in "${SOURCE_PODS[@]}"; do
   echo "==> $name"

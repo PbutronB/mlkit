@@ -13,7 +13,7 @@ Built to live next to the official **Firebase iOS SDK 10.x** Swift package.
 
 ## Installation
 
-1. **File > Add Package Dependencies…** → `https://github.com/PbutronB/mlkit`, version `3.2.1` (Up to Next Minor).
+1. **File > Add Package Dependencies…** → `https://github.com/PbutronB/mlkit`, version `3.2.2` (Up to Next Minor).
 2. Add the **`MLKit`** product to your app target.
 
 That's it. No linker flags, no bundles to copy, no build phases. Use it like the pod:
@@ -37,6 +37,8 @@ import MLKit   // or the individual modules: MLKitFaceDetection, MLKitVision, ML
 - **Model bundles**: ML Kit looks for `GoogleMVFaceDetectorResources.bundle` etc. at the root of the app. They ship inside `GoogleMLKit_MLKitResources.bundle`, and [`MLKitResources.m`](Sources/MLKitResources/MLKitResources.m) redirects only those five lookups there. If an app also copies the bundles to its root, those are used instead.
 - **`import MLKit`**: the `MLKit` target provides the same umbrella module the pod does.
 - **Apple Silicon simulator**: the arm64 device slice is re-tagged as arm64-simulator, so no Rosetta and no `EXCLUDED_ARCHS`.
+- **Privacy manifests**: Protobuf and GoogleToolboxForMac are on Apple's list of commonly used SDKs, so their frameworks carry the upstream `PrivacyInfo.xcprivacy` files from [`PrivacyManifests/`](PrivacyManifests).
+- **dSYM warnings**: pre-linking drops the debug map (`ld -r -S`), which otherwise points at a deleted temp file and makes the app's dSYM step print `unable to open object file`. Code and symbols are unchanged.
 
 ## Verified
 
@@ -63,8 +65,8 @@ The `.xcframework.zip` files are too big for git and are attached to a GitHub re
 2. Update the checksums and the version in `releaseURL` in `Package.swift`.
 3. Commit, tag, push, and attach the zips:
    ```sh
-   git tag 3.2.1 && git push origin main --tags
-   gh release create 3.2.1 release-assets/*.zip --title "ML Kit 3.2.0 (package 3.2.1)"
+   git tag 3.2.2 && git push origin main --tags
+   gh release create 3.2.2 release-assets/*.zip --title "ML Kit 3.2.0 (package 3.2.2)"
    ```
 
 ## License
